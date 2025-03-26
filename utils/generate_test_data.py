@@ -130,6 +130,9 @@ def create_event(case_id: str, fileid: int, product: str, workstream: str, event
     # Create start event with the given timestamp
     start_event = {
         "case_id": case_id,
+        "product": product,
+        "workstream": workstream,
+        "fileid": fileid,
         "event_name": event_type,
         "event_type": "start",
         "metadata": generate_metadata(event_type),
