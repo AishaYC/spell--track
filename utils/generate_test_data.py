@@ -97,7 +97,7 @@ def log_warning(message: str) -> None:
     """Print a warning message."""
     log_info(message, STATUS_EMOJIS["warning"], "yellow")
 
-def generate_complaint_ref() -> str:
+def generate_case_id() -> str:
     """Generate a random case ID."""
     prefix = ''.join(random.choices(string.ascii_uppercase, k=2))
     number = ''.join(random.choices(string.digits, k=6))
@@ -116,7 +116,7 @@ def generate_metadata(event_type: str) -> Dict:
     
     return metadata
 
-def create_event(complaint_ref: str, fileid: int, product: str, workstream: str, event_number: int, event_timestamp: datetime) -> List[Dict]:
+def create_event(case_id: str, fileid: int, product: str, workstream: str, event_number: int, event_timestamp: datetime) -> List[Dict]:
     """Create a pair of start and end events for a case."""
     event_type = random.choice(EVENT_TYPES)
     
@@ -129,7 +129,7 @@ def create_event(complaint_ref: str, fileid: int, product: str, workstream: str,
     
     # Create start event with the given timestamp
     start_event = {
-        "complaint_ref": complaint_ref,
+        "case_id": case_id,
         "event_name": event_type,
         "event_type": "start",
         "metadata": generate_metadata(event_type),
@@ -138,7 +138,7 @@ def create_event(complaint_ref: str, fileid: int, product: str, workstream: str,
     
     # Create end event with timestamp + duration
     end_event = {
-        "complaint_ref": complaint_ref,
+        "case_id": case_id,
         "product": product,
         "workstream": workstream,
         "fileid": fileid,
@@ -152,7 +152,7 @@ def create_event(complaint_ref: str, fileid: int, product: str, workstream: str,
 
 def generate_case_events(case_number: int) -> List[Dict]:
     """Generate all events for a single case."""
-    complaint_ref = generate_complaint_ref()
+    case_id = generate_case_id()
     product = random.choice(["PCA", "Mortgages", "Loans", "Savings"])
     if product == "PCA":
         workstream = random.choice["PCA BAU", "PCA C&R", "PCA F&D"]
@@ -169,7 +169,7 @@ def generate_case_events(case_number: int) -> List[Dict]:
     current_time = datetime.now()
     case_start_time = current_time - timedelta(days=random.randint(1, 30))
     
-    log_info(f"Starting case {case_number + 1}/{NUM_CASES} with ID: {complaint_ref}", "📝", "blue")
+    log_info(f"Starting case {case_number + 1}/{NUM_CASES} with ID: {case_id}", "📝", "blue")
     
     for event_number in range(EVENTS_PER_CASE):
         # Add random time between events (minimum 1 hour)
@@ -185,7 +185,7 @@ def generate_case_events(case_number: int) -> List[Dict]:
             case_start_time = prev_event_end + timedelta(minutes=gap_minutes)
         
         # Create both start and end events
-        event_pair = create_event(complaint_ref, fileid, product, workstream, event_number, case_start_time)
+        event_pair = create_event(case_id, fileid, product, workstream, event_number, case_start_time)
         events.extend(event_pair)
         
         # Add small random delay between event generation
@@ -197,14 +197,14 @@ def generate_case_events(case_number: int) -> List[Dict]:
         duration = (end_time - start_time).total_seconds() / 60  # Convert to minutes
         
         log_info(
-            f"Generated event pair {event_number + 1}/{EVENTS_PER_CASE} for case {complaint_ref}: "
+            f"Generated event pair {event_number + 1}/{EVENTS_PER_CASE} for case {case_id}: "
             f"{event_emoji} {event_pair[0]['event_name']} "
             f"(Duration: {duration:.1f} minutes)",
             STATUS_EMOJIS["processing"],
             "blue"
         )
     
-    log_success(f"Completed case {case_number + 1}/{NUM_CASES}: {complaint_ref}")
+    log_success(f"Completed case {case_number + 1}/{NUM_CASES}: {case_id}")
     return events
 
 def post_event(event: Dict) -> bool:
@@ -212,7 +212,7 @@ def post_event(event: Dict) -> bool:
     try:
         event_emoji = EMOJIS[event["event_name"]]
         log_info(
-            f"Posting event: {event_emoji} {event['event_name']} for case {event['complaint_ref']}",
+            f"Posting event: {event_emoji} {event['event_name']} for case {event['case_id']}",
             "📤",
             "cyan"
         )
@@ -220,10 +220,10 @@ def post_event(event: Dict) -> bool:
         response = requests.post(f"{BASE_URL}/events", json=event)
         response.raise_for_status()
         
-        log_success(f"Successfully posted event for case {event['complaint_ref']}")
+        log_success(f"Successfully posted event for case {event['case_id']}")
         return True
     except requests.exceptions.RequestException as e:
-        log_error(f"Error posting event for case {event['complaint_ref']}: {str(e)}")
+        log_error(f"Error posting event for case {event['case_id']}: {str(e)}")
         return False
 
 def main():
@@ -236,22 +236,22 @@ def main():
     log_info("Starting data generation", STATUS_EMOJIS["start"], "magenta")
     
     all_events = []
-    complaint_refs = set()  # Track unique case IDs
+    case_ids = set()  # Track unique case IDs
     
     with ThreadPoolExecutor(max_workers=4) as executor:
         case_events = list(executor.map(generate_case_events, range(NUM_CASES)))
         for events in case_events:
             # Verify case IDs are unique
             for event in events:
-                complaint_refs.add(event["complaint_ref"])
+                case_ids.add(event["case_id"])
             all_events.extend(events)
 
     # Verify we have the expected number of unique case IDs
-    if len(complaint_refs) != NUM_CASES:
-        log_warning(f"Warning: Expected {NUM_CASES} unique case IDs, but got {len(complaint_refs)}")
+    if len(case_ids) != NUM_CASES:
+        log_warning(f"Warning: Expected {NUM_CASES} unique case IDs, but got {len(case_ids)}")
         log_info("Case IDs generated:", "🔍", "yellow")
-        for complaint_ref in sorted(complaint_refs):
-            log_info(f"  {complaint_ref}", "📝", "yellow")
+        for case_id in sorted(case_ids):
+            log_info(f"  {case_id}", "📝", "yellow")
 
     if args.output:
         with open(args.output, 'w') as f:
