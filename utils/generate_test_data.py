@@ -120,12 +120,15 @@ def create_event(case_id: str, fileid: int, product: str, workstream: str, event
     """Create a pair of start and end events for a case."""
     event_type = random.choice(EVENT_TYPES)
     
-    # Generate a random duration between 1 hour and 4 hours
-    # For certain event types, use longer durations
-    if event_type in ["client_meeting", "document_review", "case_update"]:
-        duration_minutes = random.randint(120, 240)  # 2-4 hours
-    else:
-        duration_minutes = random.randint(60, 180)  # 1-3 hours
+    # Proportion of average time taken by each event type in the whole case
+    prop = [8, 23, 12, 6, 4, 9, 19, 9]
+    # Generate a random duration which is between the average proportion of 150 and 200 minutes
+    event_index = EVENT_TYPES.index(event_type)
+    duration_minutes = random.randint(
+        150 * (prop[event_index] / sum(prop)),
+        220 * (prop[event_index] / sum(prop))
+    )
+
     
     # Create start event with the given timestamp
     start_event = {
