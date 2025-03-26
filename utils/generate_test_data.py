@@ -28,9 +28,8 @@ EMOJIS = {
     "contact_customer": "📞",
     "send_payment": "💰",
     "problem_fix": "🛠️",
-    "final_response_letter": "📩",
-    "update_nucleus": "💻",
-    "other": "🔄"
+    "generate_frl": "📩",
+    "close_case": "🔒"
 }
 
 STATUS_EMOJIS = {
@@ -117,7 +116,7 @@ def generate_metadata(event_type: str) -> Dict:
     
     return metadata
 
-def create_event(complaint_ref: str, fileid: int, product: str, event_number: int, event_timestamp: datetime) -> List[Dict]:
+def create_event(complaint_ref: str, fileid: int, product: str, workstream: str, event_number: int, event_timestamp: datetime) -> List[Dict]:
     """Create a pair of start and end events for a case."""
     event_type = random.choice(EVENT_TYPES)
     
@@ -141,6 +140,7 @@ def create_event(complaint_ref: str, fileid: int, product: str, event_number: in
     end_event = {
         "complaint_ref": complaint_ref,
         "product": product,
+        "workstream": workstream,
         "fileid": fileid,
         "event_name": event_type,
         "event_type": "end",
@@ -153,8 +153,16 @@ def create_event(complaint_ref: str, fileid: int, product: str, event_number: in
 def generate_case_events(case_number: int) -> List[Dict]:
     """Generate all events for a single case."""
     complaint_ref = generate_complaint_ref()
-    product = random.choice(["pca", "mortgages", "loans", "savings", "credit cards"])
-    fileid = random.randint(7803225, 7803230)
+    product = random.choice(["PCA", "Mortgages", "Loans", "Savings"])
+    if product == "PCA":
+        workstream = random.choice["PCA BAU", "PCA C&R", "PCA F&D"]
+    elif product == "Mortgages":
+        workstream = random.choice["Mortgages BAU", "Mortgages C&R", "Mortgages F&D"]
+    elif product == "Loans":
+        workstream = random.choice["Loans BAU", "Loans C&R", "Loans F&D"]
+    elif product == "Savings":
+        workstream = random.choice["Savings BAU", "Savings C&R", "Savings F&D"]
+    fileid = random.randint(7803225, 7803235)
     events = []
     
     # Generate a random start time within the last 30 days
@@ -177,7 +185,7 @@ def generate_case_events(case_number: int) -> List[Dict]:
             case_start_time = prev_event_end + timedelta(minutes=gap_minutes)
         
         # Create both start and end events
-        event_pair = create_event(complaint_ref, fileid, product, event_number, case_start_time)
+        event_pair = create_event(complaint_ref, fileid, product, workstream, event_number, case_start_time)
         events.extend(event_pair)
         
         # Add small random delay between event generation
