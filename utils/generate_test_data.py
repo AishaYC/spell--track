@@ -22,14 +22,14 @@ EVENTS_PER_CASE = 10
 
 # Emoji constants
 EMOJIS = {
-    "understand_the_complaint": "📄",
-    "investigate_and_data_gather": "🔎",
+    "understand_the_complaint": "🎯",
+    "investigate_and_data_gather": "🔍",
     "find_relevant_info": "📚",
     "contact_customer": "📞",
     "send_payment": "💰",
-    "problem_fix": "🛠️",
-    "generate_frl": "📩",
-    "close_case": "🔒"
+    "problem_fix": "🔧",
+    "generate_frl": "📄",
+    "close_case": "✅"
 }
 
 STATUS_EMOJIS = {
@@ -46,38 +46,47 @@ STATUS_EMOJIS = {
 EVENT_TYPES = list(EMOJIS.keys())
 
 METADATA_TEMPLATES = {
-
     "understand_the_complaint": {
-        "system": ["nucleus", "merlin"]
+        "system": ["nucleus", "merlin"],
+        "priority": ["high", "medium", "low"],
+        "category": ["billing", "technical", "service", "account"]
     },
-
     "investigate_and_data_gather": {
-        "system": ["pega", "visionplus", "cobra", "mainframe", "ocis", "ewfm"]
+        "system": ["pega", "visionplus", "cobra", "mainframe", "ocis", "ewfm"],
+        "data_type": ["customer_info", "billing_history", "service_records", "technical_logs"],
+        "complexity": ["simple", "moderate", "complex"]
     },
-    
     "find_relevant_info": {
-        "system": ["knowledgehub", "athena", "fountain", "verint", "merlin"]
+        "system": ["knowledgehub", "athena", "fountain", "verint", "merlin"],
+        "info_type": ["policies", "procedures", "historical_cases", "documentation"],
+        "relevance": ["high", "medium", "low"]
     },
-
     "contact_customer": {
-        "system": ["o2portal", "avaya", "verint"]
+        "system": ["o2portal", "avaya", "verint"],
+        "contact_method": ["phone", "email", "chat"],
+        "outcome": ["successful", "voicemail", "reschedule", "no_answer"]
     },
-    
     "send_payment": {
-        "system": ["nucleus", "pega"]
-    }, 
-
+        "system": ["nucleus", "pega"],
+        "amount": range(10, 10001),
+        "payment_type": ["refund", "compensation", "adjustment"],
+        "status": ["processed", "pending", "failed"]
+    },
     "problem_fix": {
-        "system": ["nucleus", "pega", "visionplus", "cobra"]
+        "system": ["nucleus", "pega", "visionplus", "cobra"],
+        "fix_type": ["technical", "billing", "service", "account"],
+        "resolution": ["resolved", "partial", "escalated"]
     },
-
     "generate_frl": {
-        "system": "smartcomms"
+        "system": ["smartcomms"],
+        "document_type": ["resolution_letter", "explanation_letter", "apology_letter"],
+        "priority": ["high", "medium", "low"]
     },
-    
     "close_case": {
-        "system": "nucleus"
-    },       
+        "system": ["nucleus"],
+        "closure_type": ["resolved", "escalated", "transferred"],
+        "satisfaction_level": ["high", "medium", "low"]
+    }
 }
 
 def log_info(message: str, emoji: str = "ℹ️", color: str = "white") -> None:
@@ -113,29 +122,41 @@ def generate_metadata(event_type: str) -> Dict:
             metadata[key] = random.choice(list(values))
         else:
             metadata[key] = random.choice(values)
+        
+    metadata["product"] = random.choice(["PCA", "Mortgages", "Loans", "Savings"])
+    if metadata["product"] == "PCA":
+        metadata["workstream"] = random.choice(["PCA BAU", "PCA C&R", "PCA F&D"])
+    elif metadata["product"] == "Mortgages":
+        metadata["workstream"] = random.choice(["Mortgages BAU", "Mortgages C&R", "Mortgages F&D"])
+    elif metadata["product"] == "Loans":
+        metadata["workstream"] = random.choice(["Loans BAU", "Loans C&R", "Loans F&D"])
+    elif metadata["product"] == "Savings":
+        metadata["workstream"] = random.choice(["Savings BAU", "Savings C&R", "Savings F&D"])
+    metadata["fileid"] = random.randint(7803225, 7803235)
     
     return metadata
 
-def create_event(case_id: str, fileid: int, product: str, workstream: str, event_number: int, event_timestamp: datetime) -> List[Dict]:
+def create_event(case_id: str, event_number: int, event_timestamp: datetime) -> List[Dict]:
     """Create a pair of start and end events for a case."""
     event_type = random.choice(EVENT_TYPES)
     
-    # Proportion of average time taken by each event type in the whole case
-    prop = [8, 23, 12, 6, 4, 9, 19, 9]
-    # Generate a random duration which is between the average proportion of 150 and 200 minutes
-    event_index = EVENT_TYPES.index(event_type)
-    duration_minutes = random.randint(
-        150 * (prop[event_index] / sum(prop)),
-        220 * (prop[event_index] / sum(prop))
-    )
-
+    # Generate a random duration based on event type
+    if event_type in ["investigate_and_data_gather", "problem_fix"]:
+        duration_minutes = random.randint(120, 360)  # 2-6 hours for complex tasks
+    elif event_type in ["understand_the_complaint", "find_relevant_info"]:
+        duration_minutes = random.randint(60, 180)  # 1-3 hours for research tasks
+    elif event_type == "contact_customer":
+        duration_minutes = random.randint(15, 60)  # 15-60 minutes for customer contact
+    elif event_type == "send_payment":
+        duration_minutes = random.randint(30, 90)  # 30-90 minutes for payment processing
+    elif event_type == "generate_frl":
+        duration_minutes = random.randint(45, 120)  # 45-120 minutes for document generation
+    else:  # close_case
+        duration_minutes = random.randint(15, 45)  # 15-45 minutes for case closure
     
     # Create start event with the given timestamp
     start_event = {
         "case_id": case_id,
-        "product": product,
-        "workstream": workstream,
-        "fileid": fileid,
         "event_name": event_type,
         "event_type": "start",
         "metadata": generate_metadata(event_type),
@@ -145,9 +166,6 @@ def create_event(case_id: str, fileid: int, product: str, workstream: str, event
     # Create end event with timestamp + duration
     end_event = {
         "case_id": case_id,
-        "product": product,
-        "workstream": workstream,
-        "fileid": fileid,
         "event_name": event_type,
         "event_type": "end",
         "metadata": generate_metadata(event_type),
@@ -159,39 +177,45 @@ def create_event(case_id: str, fileid: int, product: str, workstream: str, event
 def generate_case_events(case_number: int) -> List[Dict]:
     """Generate all events for a single case."""
     case_id = generate_case_id()
-    product = random.choice(["PCA", "Mortgages", "Loans", "Savings"])
-    if product == "PCA":
-        workstream = random.choice["PCA BAU", "PCA C&R", "PCA F&D"]
-    elif product == "Mortgages":
-        workstream = random.choice["Mortgages BAU", "Mortgages C&R", "Mortgages F&D"]
-    elif product == "Loans":
-        workstream = random.choice["Loans BAU", "Loans C&R", "Loans F&D"]
-    elif product == "Savings":
-        workstream = random.choice["Savings BAU", "Savings C&R", "Savings F&D"]
-    fileid = random.randint(7803225, 7803235)
     events = []
     
     # Generate a random start time within the last 30 days
     current_time = datetime.now()
     case_start_time = current_time - timedelta(days=random.randint(1, 30))
     
+    # Calculate target total case duration (around 200 minutes with some variation)
+    target_total_duration = random.randint(180, 220)  # 3-3.7 hours
+    
     log_info(f"Starting case {case_number + 1}/{NUM_CASES} with ID: {case_id}", "📝", "blue")
     
+    # Calculate average time per event pair to achieve target duration
+    # We have EVENTS_PER_CASE event pairs, so divide total duration by number of pairs
+    avg_time_per_pair = target_total_duration / EVENTS_PER_CASE
+    
     for event_number in range(EVENTS_PER_CASE):
-        # Add random time between events (minimum 1 hour)
+        # Add random time between events based on previous event type
         if event_number > 0:
             # Get the end time of the previous event
             prev_event_end = datetime.fromisoformat(events[-1]["timestamp"])
-            # Ensure at least 1 hour gap between events
-            # For certain event types, use longer gaps
-            if events[-1]["event_name"] in ["client_meeting", "document_review"]:
-                gap_minutes = random.randint(120, 180)  # 2-3 hours
+            # Calculate remaining time to distribute
+            remaining_pairs = EVENTS_PER_CASE - event_number
+            remaining_time = target_total_duration - (prev_event_end - case_start_time).total_seconds() / 60
+            
+            # Calculate gap based on remaining time and pairs
+            if remaining_pairs > 0:
+                # Ensure we don't exceed the target duration
+                max_gap = min(
+                    remaining_time / remaining_pairs * 1.5,  # Allow some variation
+                    random.randint(15, 60)  # Cap at 60 minutes
+                )
+                gap_minutes = random.uniform(5, max_gap)
             else:
-                gap_minutes = random.randint(60, 120)  # 1-2 hours
+                gap_minutes = 0
+                
             case_start_time = prev_event_end + timedelta(minutes=gap_minutes)
         
         # Create both start and end events
-        event_pair = create_event(case_id, fileid, product, workstream, event_number, case_start_time)
+        event_pair = create_event(case_id, event_number, case_start_time)
         events.extend(event_pair)
         
         # Add small random delay between event generation
@@ -209,6 +233,15 @@ def generate_case_events(case_number: int) -> List[Dict]:
             STATUS_EMOJIS["processing"],
             "blue"
         )
+    
+    # Log the total case duration
+    total_duration = (datetime.fromisoformat(events[-1]["timestamp"]) - 
+                     datetime.fromisoformat(events[0]["timestamp"])).total_seconds() / 60
+    log_info(
+        f"Total case duration: {total_duration:.1f} minutes",
+        "⏱️",
+        "green"
+    )
     
     log_success(f"Completed case {case_number + 1}/{NUM_CASES}: {case_id}")
     return events
@@ -231,6 +264,23 @@ def post_event(event: Dict) -> bool:
     except requests.exceptions.RequestException as e:
         log_error(f"Error posting event for case {event['case_id']}: {str(e)}")
         return False
+
+def generate_normally_distributed_duration() -> int:
+    """Generate a duration in minutes following a normal distribution.
+    
+    Returns:
+        int: A duration centered around 180 minutes with a standard deviation of 30 minutes.
+             The value is clamped to ensure it stays within reasonable bounds (60-300 minutes).
+    """
+    # Generate a random number from a normal distribution
+    # mean = 180, standard deviation = 30
+    duration = random.gauss(180, 30)
+    
+    # Clamp the value to reasonable bounds (60-300 minutes)
+    duration = max(60, min(300, duration))
+    
+    # Convert to integer since we're dealing with minutes
+    return int(duration)
 
 def main():
     parser = argparse.ArgumentParser(description='Generate test data for event tracking system')
@@ -292,4 +342,4 @@ def main():
     )
 
 if __name__ == "__main__":
-    main() 
+    main()
