@@ -20,6 +20,7 @@ init()
 BASE_URL = "http://localhost:8080"
 NUM_CASES = 10
 EVENTS_PER_CASE = 10
+N_SAMPLE_EVENTS = 5
 
 # Emoji constants
 EMOJIS = {
@@ -113,7 +114,7 @@ def generate_case_id() -> str:
     number = ''.join(random.choices(string.digits, k=6))
     return f"{prefix}{number}"
 
-def generate_metadata(event_type: str) -> Dict:
+def generate_metadata(event_type: str, product: str, workstream: str, fileid: int) -> Dict:
     """Generate random metadata for a given event type."""
     template = METADATA_TEMPLATES[event_type]
     metadata = {}
@@ -123,25 +124,18 @@ def generate_metadata(event_type: str) -> Dict:
             metadata[key] = random.choice(list(values))
         else:
             metadata[key] = random.choice(values)
-        
-    metadata["product"] = random.choice(["PCA", "Mortgages", "Loans", "Savings"])
-    if metadata["product"] == "PCA":
-        metadata["workstream"] = random.choice(["PCA BAU", "PCA C&R", "PCA F&D"])
-    elif metadata["product"] == "Mortgages":
-        metadata["workstream"] = random.choice(["Mortgages BAU", "Mortgages C&R", "Mortgages F&D"])
-    elif metadata["product"] == "Loans":
-        metadata["workstream"] = random.choice(["Loans BAU", "Loans C&R", "Loans F&D"])
-    elif metadata["product"] == "Savings":
-        metadata["workstream"] = random.choice(["Savings BAU", "Savings C&R", "Savings F&D"])
-    metadata["fileid"] = random.randint(7803225, 7803235)
+
+    # Add additional metadata case-related metadata
+    metadata["product"] = product
+    metadata["workstream"] = workstream
+    metadata["fileid"] = fileid
     
     return metadata
 
-def create_event(case_id: str, event_number: int, event_timestamp: datetime) -> List[Dict]:
+def create_event(case_id: str, event_name: str, event_timestamp: datetime, product: str, workstream: str, fileid: int) -> List[Dict]:
     """Create a pair of start and end events for a case."""
-    event_type = random.choice(EVENT_TYPES)
 
-    event_index = EVENT_TYPES.index(event_type)
+    event_index = EVENT_TYPES.index(event_name)
     # Proportion of average time taken by each event type in the whole case
     prop = [8, 23, 12, 6, 4, 9, 19, 9]
     # Generate a duration in minutes following a normal distribution
@@ -150,18 +144,18 @@ def create_event(case_id: str, event_number: int, event_timestamp: datetime) -> 
     # Create start event with the given timestamp
     start_event = {
         "case_id": case_id,
-        "event_name": event_type,
+        "event_name": event_name,
         "event_type": "start",
-        "metadata": generate_metadata(event_type),
+        "metadata": generate_metadata(event_name, product, workstream, fileid),
         "timestamp": event_timestamp.isoformat()
     }
     
     # Create end event with timestamp + duration
     end_event = {
         "case_id": case_id,
-        "event_name": event_type,
+        "event_name": event_name,
         "event_type": "end",
-        "metadata": generate_metadata(event_type),
+        "metadata": generate_metadata(event_name, product, workstream, fileid),
         "timestamp": (event_timestamp + timedelta(minutes=duration_minutes)).isoformat()
     }
     
@@ -176,33 +170,32 @@ def generate_case_events(case_number: int) -> List[Dict]:
     current_time = datetime.now()
     case_start_time = current_time - timedelta(days=random.randint(1, 30))
     
-    # Calculate target total case duration (around 200 minutes with some variation)
-    target_total_duration = random.randint(180, 220)  # 3-3.7 hours
     
     log_info(f"Starting case {case_number + 1}/{NUM_CASES} with ID: {case_id}", "📝", "blue")
     
-    # Calculate average time per event pair to achieve target duration
-    # We have EVENTS_PER_CASE event pairs, so divide total duration by number of pairs
-    avg_time_per_pair = target_total_duration / EVENTS_PER_CASE
+    # Generate static case-related metadata
+    fileid = random.randint(7803225, 7803235)
+    product = random.choice(["PCA", "Mortgages", "Loans", "Savings"])
+    if product == "PCA":
+        workstream = random.choice(["PCA BAU", "PCA C&R", "PCA F&D"])
+    elif product == "Mortgages":
+        workstream = random.choice(["Mortgages BAU", "Mortgages C&R", "Mortgages F&D"])
+    elif product == "Loans":
+        workstream = random.choice(["Loans BAU", "Loans C&R", "Loans F&D"])
+    elif product == "Savings":
+        workstream = random.choice(["Savings BAU", "Savings C&R", "Savings F&D"])
     
-    for event_number in range(EVENTS_PER_CASE):
+    for event_name in EVENT_TYPES:
         # Add random time between events based on previous event type
-        if event_number > 0:
+        if event_name != "understand_the_complaint":
             # Get the end time of the previous event
             prev_event_end = datetime.fromisoformat(events[-1]["timestamp"])
-            # Calculate remaining time to distribute
-            remaining_pairs = EVENTS_PER_CASE - event_number
-            
-            # Calculate gap based on remaining time and pairs
-            if remaining_pairs > 0:
-                gap_minutes = random.uniform(5, 60)
-            else:
-                gap_minutes = 0
+            gap_minutes = random.uniform(5, 60)
                 
             case_start_time = prev_event_end + timedelta(minutes=gap_minutes)
         
         # Create both start and end events
-        event_pair = create_event(case_id, event_number, case_start_time)
+        event_pair = create_event(case_id, event_name, case_start_time, product, workstream, fileid)
         events.extend(event_pair)
         
         # Add small random delay between event generation
@@ -214,7 +207,7 @@ def generate_case_events(case_number: int) -> List[Dict]:
         duration = (end_time - start_time).total_seconds() / 60  # Convert to minutes
         
         log_info(
-            f"Generated event pair {event_number + 1}/{EVENTS_PER_CASE} for case {case_id}: "
+            f"Generated event pair {event_name} for case {case_id}: "
             f"{event_emoji} {event_pair[0]['event_name']} "
             f"(Duration: {duration:.1f} minutes)",
             STATUS_EMOJIS["processing"],
@@ -302,9 +295,9 @@ def main():
         log_success(f"Events saved to {args.output}")
     elif args.dry_run:
         print("\n" + "="*50)
-        print(colored("Sample Events (first 5):", "yellow"))
+        print(colored(f"Sample Events (first {N_SAMPLE_EVENTS}):", "yellow"))
         print("="*50 + "\n")
-        print(json.dumps(all_events[:5], indent=2))
+        print(json.dumps(all_events[:N_SAMPLE_EVENTS], indent=2))
         log_info(f"Generated {len(all_events)} events (dry run)", "🔍", "yellow")
     else:
         log_info("Posting events to API...", "📤", "cyan")
