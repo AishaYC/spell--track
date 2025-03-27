@@ -19,8 +19,7 @@ init()
 # Configuration
 BASE_URL = "http://localhost:8080"
 NUM_CASES = 10
-EVENTS_PER_CASE = 10
-N_SAMPLE_EVENTS = 5
+N_SAMPLE_EVENTS = 20 # Needs to be less than NUM_CASES * 8 (events per case)
 
 # Emoji constants
 EMOJIS = {
