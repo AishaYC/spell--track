@@ -11,6 +11,7 @@ from typing import List, Dict
 import argparse
 from colorama import init
 from termcolor import colored
+import numpy as np
 
 # Initialize colorama for Windows support
 init()
@@ -139,20 +140,12 @@ def generate_metadata(event_type: str) -> Dict:
 def create_event(case_id: str, event_number: int, event_timestamp: datetime) -> List[Dict]:
     """Create a pair of start and end events for a case."""
     event_type = random.choice(EVENT_TYPES)
-    
-    # Generate a random duration based on event type
-    if event_type in ["investigate_and_data_gather", "problem_fix"]:
-        duration_minutes = random.randint(120, 360)  # 2-6 hours for complex tasks
-    elif event_type in ["understand_the_complaint", "find_relevant_info"]:
-        duration_minutes = random.randint(60, 180)  # 1-3 hours for research tasks
-    elif event_type == "contact_customer":
-        duration_minutes = random.randint(15, 60)  # 15-60 minutes for customer contact
-    elif event_type == "send_payment":
-        duration_minutes = random.randint(30, 90)  # 30-90 minutes for payment processing
-    elif event_type == "generate_frl":
-        duration_minutes = random.randint(45, 120)  # 45-120 minutes for document generation
-    else:  # close_case
-        duration_minutes = random.randint(15, 45)  # 15-45 minutes for case closure
+
+    event_index = EVENT_TYPES.index(event_type)
+    # Proportion of average time taken by each event type in the whole case
+    prop = [8, 23, 12, 6, 4, 9, 19, 9]
+    # Generate a duration in minutes following a normal distribution
+    duration_minutes = np.random.normal(180, 30) * (prop[event_index] / sum(prop))
     
     # Create start event with the given timestamp
     start_event = {
@@ -199,16 +192,10 @@ def generate_case_events(case_number: int) -> List[Dict]:
             prev_event_end = datetime.fromisoformat(events[-1]["timestamp"])
             # Calculate remaining time to distribute
             remaining_pairs = EVENTS_PER_CASE - event_number
-            remaining_time = target_total_duration - (prev_event_end - case_start_time).total_seconds() / 60
             
             # Calculate gap based on remaining time and pairs
             if remaining_pairs > 0:
-                # Ensure we don't exceed the target duration
-                max_gap = min(
-                    remaining_time / remaining_pairs * 1.5,  # Allow some variation
-                    random.randint(15, 60)  # Cap at 60 minutes
-                )
-                gap_minutes = random.uniform(5, max_gap)
+                gap_minutes = random.uniform(5, 60)
             else:
                 gap_minutes = 0
                 
